@@ -57,6 +57,7 @@ public class SNLJOperator extends JoinOperator {
 
         public SNLJIterator() {
             super();
+
             this.rightIterator = SNLJOperator.this.getRecordIterator(this.getRightTableName());
             this.leftIterator = SNLJOperator.this.getRecordIterator(this.getLeftTableName());
 
