@@ -67,6 +67,7 @@ public class LockManager {
          */
         boolean checkCompatible(LockType lockType, long except) {
             // TODO(proj4_part1): implement
+
             return false;
         }
 

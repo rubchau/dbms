@@ -21,6 +21,28 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
+        // Done
+
+        // NL is compatible with all lock types
+        if (a.equals(NL) || b.equals(NL)) {return true;}
+
+        // IS and IS
+        if (a.equals(IS) && b.equals(IS)) {return true;}
+
+        // IS and IX
+        if ((a.equals(IS) && b.equals(IX)) ||(a.equals(IX) && b.equals(IS))) {return true;}
+
+        // IS and S
+        if ((a.equals(IS) && b.equals(S)) ||(a.equals(S) && b.equals(IS))) {return true;}
+
+        // IS and SIX
+        if ((a.equals(IS) && b.equals(SIX)) ||(a.equals(SIX) && b.equals(IS))) {return true;}
+
+        // IX and IX
+        if (a.equals(IX) && b.equals(IX)) {return true;}
+
+        // S and S
+        if (a.equals(S) && b.equals(S)) {return true;}
 
         return false;
     }
@@ -53,6 +75,25 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
+        // Done
+
+        if (childLockType.equals(NL)) {return true;}
+
+        if (parentLockType.equals(IS) && childLockType.equals(IS)) {return true;}
+
+        if (parentLockType.equals(IS) && childLockType.equals(S)) {return true;}
+
+        if (parentLockType.equals(IX) && childLockType.equals(IX)) {return true;}
+
+        if (parentLockType.equals(IX) && childLockType.equals(SIX)) {return true;}
+
+        if (parentLockType.equals(IX) && childLockType.equals(S)) {return true;}
+
+        if (parentLockType.equals(IX) && childLockType.equals(X)) {return true;}
+
+        if (parentLockType.equals(SIX) && childLockType.equals(IX)) {return true;}
+
+        if (parentLockType.equals(SIX) && childLockType.equals(X)) {return true;}
 
         return false;
     }
@@ -68,6 +109,27 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
+        // Done
+
+        if (required.equals(NL)) {return true;}
+
+        if (required.equals(substitute)) {return true;}
+
+        if (required.equals(IS) && substitute.equals(IX)) {return true;}
+
+        if (required.equals(IS) && substitute.equals(S)) {return true;}
+
+        if (required.equals(S) && substitute.equals(SIX)) {return true;}
+
+        if (required.equals(IX) && substitute.equals(SIX)) {return true;}
+
+        if (required.equals(IS) && substitute.equals(SIX)) {return true;}
+
+        if (required.equals(S) && substitute.equals(X)) {return true;}
+
+        if (required.equals(IX) && substitute.equals(X)) {return true;}
+
+        if (required.equals(IS) && substitute.equals(X)) {return true;}
 
         return false;
     }
