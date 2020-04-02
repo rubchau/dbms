@@ -2,6 +2,7 @@ package edu.berkeley.cs186.database.query;
 
 import java.util.*;
 
+import edu.berkeley.cs186.database.DatabaseException;
 import edu.berkeley.cs186.database.TransactionContext;
 import edu.berkeley.cs186.database.common.iterator.BacktrackingIterator;
 import edu.berkeley.cs186.database.databox.DataBox;
@@ -57,7 +58,94 @@ class SortMergeOperator extends JoinOperator {
 
         private SortMergeIterator() {
             super();
-            // TODO(proj3_part1): implement
+
+            // Begin by SORTING left and right relations!!!
+            SortOperator sortOpLeft = new SortOperator(SortMergeOperator.this.getTransaction(),
+                    getLeftTableName(), new LeftRecordComparator());
+            SortOperator sortOpRight = new SortOperator(SortMergeOperator.this.getTransaction(),
+                    getRightTableName(), new RightRecordComparator());
+
+            // Do not use the original relations to create iterators, use the sorted ones!
+            String leftSorted = sortOpLeft.sort();
+            String rightSorted = sortOpRight.sort();
+
+            leftIterator = SortMergeOperator.this.getRecordIterator(leftSorted);
+            rightIterator = SortMergeOperator.this.getRecordIterator(rightSorted);
+            assert(leftIterator.hasNext());
+            assert(rightIterator.hasNext());
+
+            rightRecord = rightIterator.next();
+            leftRecord = leftIterator.next();
+            marked = false;
+
+            try {
+                this.fetchNextRecord();
+            } catch (NoSuchElementException e) {
+                this.nextRecord = null;
+            }
+
+
+        }
+
+        /**
+         * Helper method to create a joined record from a record of the left relation
+         * and a record of the right relation.
+         * @param leftRecord Record from the left relation
+         * @param rightRecord Record from the right relation
+         * @return joined record
+         */
+        private Record joinRecords(Record leftRecord, Record rightRecord) {
+            List<DataBox> leftValues = new ArrayList<>(leftRecord.getValues());
+            List<DataBox> rightValues = new ArrayList<>(rightRecord.getValues());
+            leftValues.addAll(rightValues);
+            return new Record(leftValues);
+        }
+
+        private void advanceRight() {
+            rightRecord = rightIterator.hasNext() ? rightIterator.next() : null;
+        }
+
+        private void advanceLeft() {
+            leftRecord = leftIterator.hasNext() ? leftIterator.next() : null;
+        }
+
+        private int leftRightCompare() {
+            return new LeftRightRecordComparator().compare(leftRecord, rightRecord);
+        }
+
+        private void resetRightIter() {
+            rightIterator.reset();
+            assert(rightIterator.hasNext());
+            rightRecord = rightIterator.next();
+        }
+
+        private void fetchNextRecord() {
+            if (this.leftRecord == null) { throw new NoSuchElementException("No new record to fetch."); }
+            nextRecord = null;
+            while (!hasNext()) {
+                if (leftRecord == null) throw new NoSuchElementException("All done");
+                if (!marked) {
+                    // left record LESS THAN right record
+                    while (leftRightCompare() < 0 && leftIterator.hasNext()) {
+                        advanceLeft();
+                    }
+                    // left record GREATER THAN right record
+                    while (leftRightCompare() > 0 && rightIterator.hasNext()) {
+                        advanceRight();
+                    }
+                    marked = true;
+                    rightIterator.markPrev();
+                }
+
+                if (rightRecord != null && leftRightCompare() == 0) {
+                    nextRecord = joinRecords(leftRecord, rightRecord);
+                    advanceRight();
+                } else {
+                    resetRightIter();
+                    advanceLeft();
+                    marked = false;
+                }
+            }
         }
 
         /**
@@ -67,9 +155,7 @@ class SortMergeOperator extends JoinOperator {
          */
         @Override
         public boolean hasNext() {
-            // TODO(proj3_part1): implement
-
-            return false;
+            return this.nextRecord != null;
         }
 
         /**
@@ -80,9 +166,17 @@ class SortMergeOperator extends JoinOperator {
          */
         @Override
         public Record next() {
-            // TODO(proj3_part1): implement
+            if (!this.hasNext()) {
+                throw new NoSuchElementException();
+            }
 
-            throw new NoSuchElementException();
+            Record nextRecord = this.nextRecord;
+            try {
+                this.fetchNextRecord();
+            } catch (NoSuchElementException e) {
+                this.nextRecord = null;
+            }
+            return nextRecord;
         }
 
         @Override
@@ -103,6 +197,14 @@ class SortMergeOperator extends JoinOperator {
             public int compare(Record o1, Record o2) {
                 return o1.getValues().get(SortMergeOperator.this.getRightColumnIndex()).compareTo(
                            o2.getValues().get(SortMergeOperator.this.getRightColumnIndex()));
+            }
+        }
+
+        private class LeftRightRecordComparator implements Comparator<Record> {
+            @Override
+            public int compare(Record o1, Record o2) {
+                return o1.getValues().get(SortMergeOperator.this.getLeftColumnIndex()).compareTo(
+                        o2.getValues().get(SortMergeOperator.this.getRightColumnIndex()));
             }
         }
     }

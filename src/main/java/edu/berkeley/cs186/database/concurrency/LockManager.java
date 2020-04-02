@@ -59,6 +59,20 @@ public class LockManager {
 
         // TODO(proj4_part1): You may add helper methods here if you wish
 
+        // Returns true if NAME has another lock on it
+        public boolean hasIncompatibleLocks(ResourceName name, LockType lockType) {
+             Set<Map.Entry<Long, List<Lock>>> entries = transactionLocks.entrySet();
+             for (Map.Entry<Long, List<Lock>> e : entries) {
+                 List<Lock> locks = e.getValue();
+                 for (Lock l : locks) {
+                     if (l.name.equals(name)) {
+                         return true;
+                     }
+                 }
+             }
+             return false;
+        }
+
         @Override
         public String toString() {
             return "Active Locks: " + Arrays.toString(this.locks.toArray()) +
@@ -79,6 +93,7 @@ public class LockManager {
     }
 
     // TODO(proj4_part1): You may add helper methods here if you wish
+
 
     /**
      * Acquire a LOCKTYPE lock on NAME, for transaction TRANSACTION, and releases all locks
@@ -109,6 +124,7 @@ public class LockManager {
         // you will have to write some code outside the synchronized block to avoid locking up
         // the entire lock manager when a transaction is blocked. You are also allowed to
         // move the synchronized block elsewhere if you wish.
+
         synchronized (this) {
             return;
         }
@@ -134,6 +150,19 @@ public class LockManager {
         // the entire lock manager when a transaction is blocked. You are also allowed to
         // move the synchronized block elsewhere if you wish.
         synchronized (this) {
+            // If grantLock is false by end of sync block, then TRANSACTION is blocked
+            // and a LockRequest object is constructed and added to NAME's waitingQueue
+            boolean grantLock = false;
+            // A lock on NAME is held by TRANSACTION
+            Long transNum = transaction.getTransNum();
+            if (transactionLocks.containsKey(transNum)) {
+                if (transactionLocks.get(transNum) != null) {
+                    throw new DuplicateLockRequestException("Transaction already holds lock on this resource.");
+                }
+            }
+            // If there is ANOTHER transaction with a lock on this resource, check that LOCKTYPE is
+            // compatible with the other lockType
+
             return;
         }
     }

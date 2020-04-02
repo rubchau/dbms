@@ -169,7 +169,6 @@ public class TestJoinOperator {
             }
             checkIOs(0);
 
-            System.out.print(numRecords);
             assertFalse("too many records", outputIterator.hasNext());
             assertEquals("too few records", 100 * 100, numRecords);
         }
@@ -351,6 +350,7 @@ public class TestJoinOperator {
             }
             checkIOs(0);
 
+            //System.out.print(numRecords);
             assertFalse("too many records", outputIterator.hasNext());
             assertEquals("too few records", 100 * 100, numRecords);
         }
