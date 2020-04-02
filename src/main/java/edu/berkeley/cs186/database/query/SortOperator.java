@@ -71,9 +71,18 @@ public class SortOperator {
      * size of the buffer, but it is done this way for ease.
      */
     public Run sortRun(Run run) {
-        // TODO(proj3_part1): implement
-
-        return null;
+        assert(run != null);
+        // must initialize runList or else null is carried all the way
+        List<Record> runList = new ArrayList<>();
+        Iterator<Record> runIter = run.iterator();
+        while(runIter.hasNext()) {
+            runList.add(runIter.next());
+        }
+        Collections.sort(runList, comparator);
+        assert(runList != null);
+        Run toReturn = createRun();
+        toReturn.addRecords(runList);
+        return toReturn;
     }
 
     /**

@@ -12,6 +12,9 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import static java.lang.Math.round;
+
+
 /**
  * A inner node of a B+ tree. Every inner node in a B+ tree of order d stores
  * between d and 2d keys. An inner node with n keys stores n + 1 "pointers" to
@@ -78,42 +81,115 @@ class InnerNode extends BPlusNode {
     // See BPlusNode.get.
     @Override
     public LeafNode get(DataBox key) {
-        // TODO(proj2): implement
-
-        return null;
+        // Add comment plz :>
+        int index = numLessThanEqual(key, keys);
+        BPlusNode child = getChild(index);
+        return child.get(key);
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
+        // Please add comment :>
         assert(children.size() > 0);
-        // TODO(proj2): implement
-
-        return null;
+        return getChild(0).getLeftmostLeaf();
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
+        // ***return split key, which is moved up NOT copied
 
-        return Optional.empty();
+        // *** Handling a split child node ***
+        int index = numLessThanEqual(key, this.keys);
+        // retrieve child node
+        BPlusNode child = getChild(index);
+        // attempt to put (KEY, RID) at child node and see what is returned
+        Optional<Pair<DataBox, Long>> tryPut = child.put(key, rid);
+        // If tryPut = Optional.empty() we know the put was successful
+        if (!tryPut.isPresent()) {
+            return Optional.empty();
+        }
+
+        // tryPut is not empty, so we have a (splitKey, rightPagePointer) pair from a
+        // child node; store this pair
+        Pair<DataBox, Long> newEntry = tryPut.get();
+        int order = this.metadata.getOrder();
+        int maxFill = 2 * order;
+        keys.add(index, newEntry.getFirst());
+        // We always have maxFill + 1 child pointers
+        children.add(index + 1, newEntry.getSecond());
+
+        // See if this splitNode data from child can fit into this current node
+        if (keys.size() <= maxFill) {
+            sync();
+            return Optional.empty();
+        }
+        // splitNode (key, child) pair causes overflow of this node
+        DataBox splitKey = keys.get(order);
+        List<DataBox> newKeys = keys.subList(order + 1, maxFill + 1);
+        List<Long> newChildren = children.subList(order + 1, maxFill + 2);
+        keys = keys.subList(0, order);
+        children = children.subList(0, order + 1);
+        //System.out.print(newChildren.size(), newKeys.size());
+        //System.out.print(newKeys.size());
+        //System.out.printf("Children size: %s  Keys Size: %s", newChildren.size(), newKeys.size());
+
+        InnerNode newInnerNode = new InnerNode(metadata, bufferManager, newKeys, newChildren, treeContext);
+
+        Optional<Pair<DataBox, Long>> params = Optional.of(new Pair(splitKey, newInnerNode.page.getPageNum()));
+        sync();
+        return params;
     }
 
     // See BPlusNode.bulkLoad.
     @Override
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
-        // TODO(proj2): implement
 
-        return Optional.empty();
+            BPlusNode child = this.getChild(this.children.size() - 1);
+            // attempt to put (KEY, RID) at child node and see what is returned
+            Optional<Pair<DataBox, Long>> tryPut = child.bulkLoad(data, fillFactor);
+            // If tryPut = Optional.empty() we know the put was successful
+            if (!tryPut.isPresent()) {
+                return Optional.empty();
+            }
+
+            // tryPut is not empty, so we have a (splitKey, rightPagePointer) pair from a
+            // child node; store this pair
+            Pair<DataBox, Long> newEntry = tryPut.get();
+            int order = this.metadata.getOrder();
+            int maxFill = 2 * order;
+            keys.add(newEntry.getFirst());
+            // We always have maxFill + 1 child pointers
+            children.add(newEntry.getSecond());
+
+            // See if this splitNode data from child can fit into this current node
+            if (keys.size() <= maxFill) {
+                //sync();
+                return Optional.empty();
+            }
+            // splitNode (key, child) pair causes overflow of this node
+            DataBox splitKey = keys.get(order);
+            List<DataBox> newKeys = keys.subList(order + 1, maxFill + 1);
+            List<Long> newChildren = children.subList(order + 1, maxFill + 2);
+            keys = keys.subList(0, order);
+            children = children.subList(0, order + 1);
+
+            InnerNode newInnerNode = new InnerNode(metadata, bufferManager, newKeys, newChildren, treeContext);
+
+            Optional<Pair<DataBox, Long>> params = Optional.of(new Pair(splitKey, newInnerNode.page.getPageNum()));
+            sync();
+            return params;
     }
 
     // See BPlusNode.remove.
     @Override
     public void remove(DataBox key) {
-        // TODO(proj2): implement
-
+        LeafNode leaf = this.get(key);
+        // Should this have an if check?
+        // --> no because LeafNode::remove() checks if KEY is in leafNode
+        leaf.remove(key);
         return;
     }
 
@@ -372,5 +448,13 @@ class InnerNode extends BPlusNode {
     @Override
     public int hashCode() {
         return Objects.hash(page.getPageNum(), keys, children);
+    }
+}
+
+class sortByKeyInner implements Comparator<DataBox> {
+
+    @Override
+    public int compare(DataBox o1, DataBox o2) {
+        return o1.getInt() - o2.getInt();
     }
 }

@@ -47,7 +47,7 @@ public class TestBPlusTree {
     // 3 seconds max per method tested.
     @Rule
     public TestRule globalTimeout = new DisableOnDebug(Timeout.millis((long) (
-                3000 * TimeoutScaling.factor)));
+                8000 * TimeoutScaling.factor)));
 
     @Before
     public void setup()  {
@@ -422,11 +422,13 @@ public class TestBPlusTree {
                 for (int i = 0; i < keys.size(); ++i) {
                     tree.put(keys.get(i), rids.get(i));
                 }
-
+                tree.toDot();
                 // Test get.
                 for (int i = 0; i < keys.size(); ++i) {
                     assertEquals(Optional.of(rids.get(i)), tree.get(keys.get(i)));
                 }
+
+                //tree.toDot();
 
                 // Test scanAll.
                 assertEquals(sortedRids, indexIteratorToList(tree::scanAll));
