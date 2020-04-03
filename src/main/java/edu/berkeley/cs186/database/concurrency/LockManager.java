@@ -67,8 +67,17 @@ public class LockManager {
          */
         boolean checkCompatible(LockType lockType, long except) {
             // TODO(proj4_part1): implement
+            // DONE
 
-            return false;
+            // EXCEPT is the tid associated with the lock object that passes in its LOCKTYPE
+            boolean toReturn = false;
+            for (Lock l : locks) {
+                if (l.transactionNum.equals(except)) {
+                    continue;
+                }
+                toReturn = LockType.compatible(lockType, l.lockType);
+            }
+            return toReturn;
         }
 
         /**
@@ -77,7 +86,28 @@ public class LockManager {
          */
         void grantOrUpdateLock(Lock lock) {
             // TODO(proj4_part1): implement
-            return;
+            // If LOCK is contained in currently granted locks on this resource,
+            // update transactionLocks and ResourceEntry.locks
+            // Update lockType of Transaction
+            if (transactionLocks.containsKey(lock.transactionNum)) {
+                List<Lock> tLocks = transactionLocks.get(lock.transactionNum);
+                for (Lock l : tLocks) {
+                    // This re-assignment could be buggy!
+                    if (l.name == lock.name) {
+                        l.lockType = lock.lockType;
+                    }
+                }
+                transactionLocks.put(lock.transactionNum, tLocks);
+                // Update lockType of Resource
+                for (Lock l : locks) {
+                    if (l.transactionNum == lock.transactionNum) {
+                        l.lockType = lock.lockType;
+                    }
+                }
+            } else {
+                transactionLocks.put(lock.transactionNum, Collections.singletonList(lock));
+                locks.add(lock);
+            }
         }
 
         /**
@@ -85,7 +115,25 @@ public class LockManager {
          */
         void releaseLock(Lock lock) {
             // TODO(proj4_part1): implement
-            return;
+            // Done
+
+            List<Lock> updatedTransLocks = new ArrayList<>();
+            List<Lock> updatedResourceLocks = new ArrayList<>();
+
+            for (Lock l : transactionLocks.get(lock.transactionNum)) {
+                if (!l.equals(lock)) {
+                    updatedTransLocks.add(l);
+                }
+            }
+
+            for (Lock l : locks) {
+                if (!l.equals(lock)) {
+                    updatedResourceLocks.add(l);
+                }
+            }
+
+            transactionLocks.put(lock.transactionNum, updatedTransLocks);
+            locks = updatedResourceLocks;
         }
 
         /**
@@ -94,13 +142,23 @@ public class LockManager {
          */
         void addToQueue(LockRequest request, boolean addFront) {
             // TODO(proj4_part1): implement
-            return;
+            // Done
+
+            if (addFront) {
+                waitingQueue.addFirst(request);
+            } else {
+                waitingQueue.addLast(request);
+            }
+
         }
 
         /**
          * Grant locks to requests from front to back of the queue, stopping
          * when the next lock cannot be granted.
          */
+        // The queue for each resource is processed independently of other queues,
+        // and must be processed after a lock on the resource is released
+        // Call processQueue() AFTER calling release
         private void processQueue() {
             // TODO(proj4_part1): implement
             return;
@@ -111,7 +169,15 @@ public class LockManager {
          */
         LockType getTransactionLockType(long transaction) {
             // TODO(proj4_part1): implement
-            return LockType.NL;
+            // DONE
+
+            LockType toReturn = LockType.NL;
+            for (Lock l : locks) {
+                if (l.transactionNum == transaction) {
+                    toReturn = l.lockType;
+                }
+            }
+            return toReturn;
         }
 
         @Override
@@ -189,10 +255,30 @@ public class LockManager {
         // you will have to write some code outside the synchronized block to avoid locking up
         // the entire lock manager when a transaction is blocked. You are also allowed to
         // move the synchronized block elsewhere if you wish.
-        boolean shouldBlock = false;
+        //boolean shouldBlock = false;
         synchronized (this) {
-            return;
+            if (!getLockType(transaction, name).equals(LockType.NL)) {
+                throw new DuplicateLockRequestException("A lock is already held on this resource by the transaction.");
+            }
+            if (transaction.getBlocked()) {transaction.unblock();}
+            ResourceEntry e = getResourceEntry(name);
+
+            boolean shouldBlock = !e.checkCompatible(lockType, transaction.getTransNum());
+
+            if (!e.waitingQueue.isEmpty()) {shouldBlock = true;}
+            Lock l = new Lock(name, lockType, transaction.getTransNum());
+
+            if (!shouldBlock) {
+                e.grantOrUpdateLock(l);
+                return;
+            } else {
+                LockRequest request = new LockRequest(transaction, l);
+                e.addToQueue(request, false);
+                transaction.prepareBlock();
+            }
         }
+        transaction.block();
+        return;
     }
 
     /**
@@ -251,8 +337,20 @@ public class LockManager {
      */
     public synchronized LockType getLockType(TransactionContext transaction, ResourceName name) {
         // TODO(proj4_part1): implement
-
-        return LockType.NL;
+        // Done
+        LockType toReturn = LockType.NL;
+        if (transactionLocks.containsKey(transaction.getTransNum())) {
+            List<Lock> transLockList = transactionLocks.get(transaction.getTransNum());
+            List<Lock> resourceLockList = getResourceEntry(name).locks;
+            for (Lock l1 : transLockList) {
+                for (Lock l2 : resourceLockList) {
+                    if (l1.transactionNum == l2.transactionNum) {
+                        toReturn = l1.lockType;
+                    }
+                }
+            }
+        }
+        return toReturn;
     }
 
     /**
