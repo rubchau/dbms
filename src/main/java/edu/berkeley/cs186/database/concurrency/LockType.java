@@ -115,21 +115,26 @@ public enum LockType {
 
         if (required.equals(substitute)) {return true;}
 
+        // Valid
         if (required.equals(IS) && substitute.equals(IX)) {return true;}
 
-        if (required.equals(IS) && substitute.equals(S)) {return true;}
+        //if (required.equals(IS) && substitute.equals(S)) {return true;}
 
+        // Valid
         if (required.equals(S) && substitute.equals(SIX)) {return true;}
 
+        // Valid
         if (required.equals(IX) && substitute.equals(SIX)) {return true;}
 
+        // Valid
         if (required.equals(IS) && substitute.equals(SIX)) {return true;}
 
+        // Valid
         if (required.equals(S) && substitute.equals(X)) {return true;}
 
         if (required.equals(IX) && substitute.equals(X)) {return true;}
 
-        if (required.equals(IS) && substitute.equals(X)) {return true;}
+        //if (required.equals(IS) && substitute.equals(X)) {return true;}
 
         return false;
     }
