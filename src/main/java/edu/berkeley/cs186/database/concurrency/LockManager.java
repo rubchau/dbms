@@ -176,6 +176,20 @@ public class LockManager {
             return LockType.NL;
         }
 
+        // Returns true if NAME has another lock on it
+        public boolean hasIncompatibleLocks(ResourceName name, LockType lockType) {
+             Set<Map.Entry<Long, List<Lock>>> entries = transactionLocks.entrySet();
+             for (Map.Entry<Long, List<Lock>> e : entries) {
+                 List<Lock> locks = e.getValue();
+                 for (Lock l : locks) {
+                     if (l.name.equals(name)) {
+                         return true;
+                     }
+                 }
+             }
+             return false;
+        }
+
         @Override
         public String toString() {
             return "Active Locks: " + Arrays.toString(this.locks.toArray()) +
@@ -230,6 +244,10 @@ public class LockManager {
         // move the synchronized block elsewhere if you wish.
         boolean shouldBlock = false;
         boolean markForRelease = false;
+
+        synchronized (this) {
+            return;
+        }
     }
 
     /**
@@ -271,6 +289,20 @@ public class LockManager {
 
             resource.grantOrUpdateLock(newLock);*/
 
+            // If grantLock is false by end of sync block, then TRANSACTION is blocked
+            // and a LockRequest object is constructed and added to NAME's waitingQueue
+            boolean grantLock = false;
+            // A lock on NAME is held by TRANSACTION
+            Long transNum = transaction.getTransNum();
+            if (transactionLocks.containsKey(transNum)) {
+                if (transactionLocks.get(transNum) != null) {
+                    throw new DuplicateLockRequestException("Transaction already holds lock on this resource.");
+                }
+            }
+            // If there is ANOTHER transaction with a lock on this resource, check that LOCKTYPE is
+            // compatible with the other lockType
+
+            return;
         }
     }
 

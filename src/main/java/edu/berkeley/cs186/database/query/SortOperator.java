@@ -94,9 +94,34 @@ public class SortOperator {
      * sorting on currently unmerged from run i.
      */
     public Run mergeSortedRuns(List<Run> runs) {
-        // TODO(proj3_part1): implement
 
-        return null;
+        assert(runs != null);
+
+        // Merged run should be a PQ over <Record, Run_i> pairs;
+        // PQ over the given comparator at end of this class
+        PriorityQueue<Pair<Record, Integer>> mergedRunPQ =
+                new PriorityQueue<>(new RecordPairComparator());
+        Run mergedRun = createRun();
+
+        // Add all run elements to PQ with their respective run number (loop index in this case)
+        // This step does all of our sorting for us via minPQ
+        for(int i = 0; i < runs.size(); i++) {
+            if (runs.get(i).iterator().hasNext()) {
+                Iterator<Record> runIter = runs.get(i).iterator();
+                while (runIter.hasNext()) {
+                    Pair<Record, Integer> recordRun = new Pair<>(runIter.next(), i);
+                    mergedRunPQ.add(recordRun);
+                }
+            }
+        }
+
+        // Add the records to the newly created run
+        while (!mergedRunPQ.isEmpty()) {
+            Record toAdd = mergedRunPQ.poll().getFirst();
+            mergedRun.addRecord(toAdd.getValues());
+        }
+
+        return mergedRun;
     }
 
     /**
@@ -107,9 +132,25 @@ public class SortOperator {
      * perfect multiple.
      */
     public List<Run> mergePass(List<Run> runs) {
-        // TODO(proj3_part1): implement
 
-        return Collections.emptyList();
+        if (runs.isEmpty()){
+            return runs;
+        }
+
+        int maxRuns = numBuffers - 1;
+        List<Run> runList = new ArrayList<>();
+
+        // Need to iterate over blocks of length = maxRuns
+        for(int lower = 0; lower < runs.size(); lower += maxRuns) {
+            int upper = Math.min(runs.size(), lower + maxRuns);
+            List<Run> runSubList = runs.subList(lower, upper);
+            Run toAdd = mergeSortedRuns(runSubList);
+            runList.add(toAdd);
+            if (upper < maxRuns) {
+                break;
+            }
+        }
+        return runList;
     }
 
     /**
@@ -118,9 +159,34 @@ public class SortOperator {
      * Returns the name of the table that backs the final run.
      */
     public String sort() {
-        // TODO(proj3_part1): implement
+        // Sorting Lessons:
+        // 1. Pass 0: grab all records from the table in chunks of size NUMBUFFERS; for each chunk of records, create a sorted run
+        // 2. Pass 1 - N: repeatedly call mergePass until we have a single run (yay abstraction!)
 
-        return this.tableName; // TODO(proj3_part1): replace this!
+        List<Run> runList = new ArrayList<>();
+        BacktrackingIterator<Page> myPages = transaction.getPageIterator(tableName);
+        if (!myPages.hasNext()) {
+            return tableName;
+        }
+
+        while (myPages.hasNext()) {
+            // Step 1: Pass 0
+            BacktrackingIterator<Record> records = transaction.getBlockIterator(tableName, myPages, numBuffers);
+            Run r = createRunFromIterator(records);
+            // Forgot to sort :>
+            r = sortRun(r);
+            runList.add(r);
+        }
+
+        // Step 2: Pass 1 - N
+        int runSize = runList.size();
+        while(runSize > 1) {
+            runList = mergePass(runList);
+            runSize = runList.size();
+        }
+
+        Run toReturn = runList.get(0);
+        return toReturn.tableName();
     }
 
     public Iterator<Record> iterator() {

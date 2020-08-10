@@ -43,8 +43,53 @@ public enum LockType {
 
         // S and S
         if (a.equals(S) && b.equals(S)) {return true;}
+        // Case 1: If either lock is NL then this is compatible with all other lock types
+        if (a == NL || b == NL) {return true;}
 
-        return false;
+        // Case 2: One of the locks is IS
+        // The only combination that is not allowed is (X, IS)
+        if ((a == IS || b == IS) && (a == X || b == X)) {return false;}
+
+        // Case 3: One of the locks is IX
+        // Illegal combo 1: (IX, S)
+        if ((a == IX || b == IX) && (a == S || b == S)) {return false;}
+        // Illegal combo 2: (IX, SIX)
+        if ((a == IX || b == IX) && (a == SIX || b == SIX)) {return false;}
+        // Illegal combo 3: (IX, X)
+        if ((a == IX || b == IX) && (a == X || b == X)) {return false;}
+
+        // Case 4: one of the locks is S
+        // illegal combo 1: (S, IX)
+        // redundant; covered above
+        if ((a == S || b == S) && (a == IX || b == IX)) {return false;}
+        // illegal combo 2: (S, SIX)
+        if ((a == S || b == S) && (a == SIX || b == SIX)) {return false;}
+        // illegal combo 3: (S, X)
+        if ((a == S || b == S) && (a == X || b == X)) {return false;}
+
+        // Case 5: one of the locks is SIX
+        // illegal combo 1: (SIX, IX)
+        // covered in the IX combo portions
+        // illegal combo 2: (SIX, S)
+        // covered in the S combo portions
+        // illegal combo 3: (SIX, SIX)
+        if ((a == SIX || b == SIX) && (a == SIX || b == SIX)) {return false;}
+        // illegal combo 4: (SIX, X)
+        if ((a == SIX || b == SIX) && (a == X || b == X)) {return false;}
+
+        // Case 6: one of the locks is X
+        // illegal combo 1: (X, IS)
+        // covered in IS combos
+        // illegal combo 2: (X, IX)
+        // covered in the IX combo portions
+        // illegal combo 3: (X, S)
+        // covered in S combos
+        // illegal combo 4: (X, SIX)
+        // covered in SIX combos
+        // illegal combo 5: (X, X)
+        if ((a == X || b == X) && (a == X || b == X)) {return false;}
+
+        return true;
     }
 
     /**
@@ -95,7 +140,13 @@ public enum LockType {
 
         if (parentLockType.equals(SIX) && childLockType.equals(X)) {return true;}
 
-        return false;
+        if ((parentLockType == IS || parentLockType == IX) && (childLockType == S || childLockType == IS)) {return true;}
+        if ((parentLockType == IX || parentLockType == SIX) && (childLockType == X || childLockType == IX)) {return true;}
+        if (childLockType == NL) {return true;}
+
+        else {
+            return parentLockType == parentLock(childLockType);
+        }
     }
 
     /**
@@ -136,7 +187,15 @@ public enum LockType {
 
         //if (required.equals(IS) && substitute.equals(X)) {return true;}
 
-        return false;
+        if (required == NL) {return true;}
+        if (required == S && substitute == IS) {return false;}
+        if (required == S && substitute == IX) {return false;}
+        if (required == X && substitute == S) {return false;}
+        if (required == X && substitute == IS) {return false;}
+        if (required == X && substitute == IX) {return false;}
+        if (required == X && substitute == SIX) {return false;}
+
+        return true;
     }
 
     @Override

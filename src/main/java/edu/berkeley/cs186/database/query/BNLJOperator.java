@@ -104,6 +104,10 @@ class BNLJOperator extends JoinOperator {
             assert(leftRecordIterator.hasNext());
             leftRecordIterator.markNext();
             leftRecord = this.leftRecordIterator.next();
+            leftRecord = this.leftRecordIterator.hasNext() ? leftRecordIterator.next() : null;
+            if (leftRecord != null) {
+                leftRecordIterator.markPrev();
+            }
         }
 
         /**
@@ -124,6 +128,10 @@ class BNLJOperator extends JoinOperator {
                 this.rightRecordIterator = BNLJOperator.this.getBlockIterator(getRightTableName(), rightIterator, 1);
                 rightRecord = rightRecordIterator.next();
                 rightRecordIterator.markPrev();
+                rightRecord = rightRecordIterator.hasNext() ? rightRecordIterator.next() : null;
+                if (rightRecordIterator != null) {
+                    rightRecordIterator.markPrev();
+                }
             }
         }
 
@@ -137,6 +145,20 @@ class BNLJOperator extends JoinOperator {
             this.leftRecordIterator.reset();
             assert(leftRecordIterator.hasNext());
             leftRecord = leftRecordIterator.next();
+        }
+
+        private void resetRightIter() {
+            rightIterator.reset();
+            assert(rightIterator.hasNext());
+            fetchNextRightPage();
+        }
+
+        // indicesMatch() returns a bool on whether or not the current
+        // right and left records should be joined
+        private boolean indicesMatch() {
+            DataBox leftJoinValue = this.leftRecord.getValues().get(BNLJOperator.this.getLeftColumnIndex());
+            DataBox rightJoinValue = rightRecord.getValues().get(BNLJOperator.this.getRightColumnIndex());
+            return leftJoinValue.equals(rightJoinValue);
         }
 
         /**
@@ -180,6 +202,9 @@ class BNLJOperator extends JoinOperator {
             }*/
 
             // Implementation 3:
+            if (this.leftRecord == null) { throw new NoSuchElementException("No new record to fetch."); }
+            this.nextRecord = null;
+            // Implementation 2
             while (!hasNext()) {
                 // Case 1: We are currently on the left and right record iterators that correspond to a record match
                 // Case 2: We've iterated through an entire right block, no match --> increment the outer record (leftRecordIterator) and reset rightRecordIterator
@@ -191,6 +216,11 @@ class BNLJOperator extends JoinOperator {
                     DataBox rightJoinValue = rightRecord.getValues().get(BNLJOperator.this.getRightColumnIndex());
                     // Join if the column indices match
                     if (leftJoinValue.equals(rightJoinValue)) {
+
+                // Case 1: pretty much exactly from SNLJ:
+                if (this.rightRecord != null) {
+                    // Join if the column indices match
+                    if (indicesMatch()) {
                         this.nextRecord = joinRecords(leftRecord, rightRecord);
                         //return;
                     }
@@ -198,12 +228,14 @@ class BNLJOperator extends JoinOperator {
                     this.rightRecord = rightRecordIterator.hasNext() ? rightRecordIterator.next() : null;
                 }
                 // Case 2: increment outer record and reset inner record
-                if (leftRecordIterator != null && leftRecordIterator.hasNext()) {
+                //if (leftRecordIterator != null && leftRecordIterator.hasNext()) {
+                else if (leftRecordIterator.hasNext()) {
                     leftRecord = leftRecordIterator.hasNext() ? leftRecordIterator.next() : null;
                     resetRightRecordIterator();
                 }
                 // Case 3: increment page of right relation, reset left record iterator
-                else if (rightIterator != null && rightIterator.hasNext()) {
+                //else if (rightIterator != null && rightIterator.hasNext()) {
+                else if (rightIterator.hasNext()) {
                     fetchNextRightPage();
                     resetLeftRecordIterator();
                 } // Case 4: outer block must be incremented, inner iterator completely reset
@@ -233,6 +265,14 @@ class BNLJOperator extends JoinOperator {
                     }
                 }
             }*/
+                    // Extra IO incurred when fetching next right page in resetRightIter()
+                    resetRightIter();
+                }
+                // If anyone is reading this: these next three lines actually saved my life.
+                else {
+                    throw new NoSuchElementException("All done.");
+                }
+            }
         }
 
         /**

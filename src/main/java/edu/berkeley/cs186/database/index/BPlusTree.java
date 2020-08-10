@@ -137,7 +137,6 @@ public class BPlusTree {
     public Optional<RecordId> get(DataBox key) {
         typecheck(key);
         // TODO(proj2): implement
-
         // TODO(proj4_part2): B+ tree locking
         LeafNode leaf = root.get(key);
         return leaf.getKey(key);
@@ -282,7 +281,6 @@ public class BPlusTree {
      */
     public void bulkLoad(Iterator<Pair<DataBox, RecordId>> data, float fillFactor) {
         // TODO(proj2): implement
-
         // TODO(proj4_part2): B+ tree locking
         //if (this.root.) {
             //throw new BPlusTreeException("Must be empty tree.");
@@ -325,7 +323,6 @@ public class BPlusTree {
     public void remove(DataBox key) {
         typecheck(key);
         // TODO(proj2): implement
-
         // TODO(proj4_part2): B+ tree locking
         BPlusNode root = this.root;
         root.remove(key);

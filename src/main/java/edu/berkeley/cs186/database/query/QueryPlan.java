@@ -157,7 +157,7 @@ public class QueryPlan {
      * @param rightColumnName the join column in tableName
      */
     public void join(String tableName, String leftColumnName, String rightColumnName) {
-        join(tableName, tableName, leftColumnName, rightColumnName);
+            join(tableName, tableName, leftColumnName, rightColumnName);
     }
 
     /**
@@ -231,15 +231,38 @@ public class QueryPlan {
         // Pass 1: Iterate through all single tables. For each single table, find
         // the lowest cost QueryOperator to access that table. Construct a mapping
         // of each table name to its lowest cost operator.
-
+        // Need this to be a Set<String> because we need to pass it to minCostJoins
+        Map<Set, QueryOperator> pass1Map = new HashMap<>();
+        Map<Set, QueryOperator> prevMap;
+        // Need to begin with startTableName in order to line up indices in joinTableNames,
+        // joinLeftColumnNames, and joinRightColumnNames
+        pass1Map.put(Collections.singleton(startTableName), minCostSingleAccess(startTableName));
+        //assert(!joinTableNames.isEmpty());
+        for(String tableName : joinTableNames) {
+            pass1Map.put(Collections.singleton(tableName), minCostSingleAccess(tableName));
+        }
         // Pass i: On each pass, use the results from the previous pass to find the
         // lowest cost joins with each single table. Repeat until all tables have
         // been joined.
+        // All tables have been joined when the map is reduced to a (single table, JoinOperator) pair!
+        for(Map.Entry<Set, QueryOperator> e : pass1Map.entrySet()) {
+            assert(e.getValue() != null);
+        }
+        prevMap = minCostJoins(pass1Map, pass1Map);
+        while (prevMap.size() > 1) {
+            prevMap = minCostJoins(prevMap, pass1Map);
+        }
+        assert(!prevMap.isEmpty());
+        for(Map.Entry<Set, QueryOperator> e : prevMap.entrySet()) {
+            assert(e.getValue() != null);
+        }
 
         // Get the lowest cost operator from the last pass, add GROUP BY and SELECT
         // operators, and return an iterator on the final operator
-
-        return this.executeNaive(); // TODO(proj3_part2): Replace this!!! Allows you to test intermediate functionality
+        this.finalOperator = minCostOperator(prevMap);
+        this.addGroupBy();
+        this.addProjects();
+        return finalOperator.execute(); // TODO(proj3_part2): Replace this!!! Allows you to test intermediate functionality
     }
 
     /**
@@ -326,22 +349,51 @@ public class QueryPlan {
      * pushed down select operators
      */
     QueryOperator minCostSingleAccess(String table) {
-        QueryOperator minOp = null;
-
-        // Find the cost of a sequential scan of the table
-        // minOp = new SequentialScanOperator(this.transaction, table);
-
-        // TODO(proj3_part2): implement
+        QueryOperator minIndexOperator = null;
+        QueryOperator toReturn = null;
 
         // 1. Find the cost of a sequential scan of the table
+        QueryOperator minSequentialOperator = new SequentialScanOperator(this.transaction, table);
+        int seqScanCost = minSequentialOperator.estimateIOCost();
 
         // 2. For each eligible index column, find the cost of an index scan of the
         // table and retain the lowest cost operator
+        List<Integer> indexColumns = getEligibleIndexColumns(table);
+        int indexScanCost = Integer.MAX_VALUE;
+        int indexedOn = Integer.MIN_VALUE;
+        if (selectOperators.size() > 0) {
+            for (int i : indexColumns) {
+                    PredicateOperator predicate = this.selectOperators.get(i);
+                    DataBox dBox = this.selectDataBoxes.get(i);
+                    QueryOperator element = new IndexScanOperator(transaction, table,
+                            selectColumnNames.get(i), predicate, dBox);
+                    int currIndexCost = element.estimateIOCost();
+                    if (currIndexCost < indexScanCost) {
+                        indexScanCost = currIndexCost;
+                        minIndexOperator = element;
+                        indexedOn = i;
+                    }
+            }
+        }
 
         // 3. Push down SELECT predicates that apply to this table and that were not
         // used for an index scan
+        if(minIndexOperator != null && indexedOn != Integer.MIN_VALUE) {
+            minIndexOperator = addEligibleSelections(minIndexOperator, indexedOn);
+            indexScanCost = minIndexOperator.estimateIOCost();
+            if (indexScanCost <= seqScanCost) {
+                toReturn = minIndexOperator;
+            } else {
+                minSequentialOperator = addEligibleSelections(minSequentialOperator, Integer.MIN_VALUE);
+                toReturn = minSequentialOperator;
+            }
+        } else {
+            minSequentialOperator = addEligibleSelections(minSequentialOperator, Integer.MIN_VALUE);
+            toReturn = minSequentialOperator;
+        }
 
-        return minOp;
+        assert(toReturn != null);
+        return toReturn;
     }
 
     /**
@@ -385,6 +437,7 @@ public class QueryPlan {
      */
     Map<Set, QueryOperator> minCostJoins(Map<Set, QueryOperator> prevMap,
                                          Map<Set, QueryOperator> pass1Map) {
+
         Map<Set, QueryOperator> map = new HashMap<>();
 
         // TODO(proj3_part2): implement
@@ -392,27 +445,74 @@ public class QueryPlan {
         //We provide a basic description of the logic you have to implement
 
         //Input: prevMap (maps a set of tables to a query operator--the operator that joins the set)
+        // NOTE: set of tables is a set of type string
         //Input: pass1Map (each set is a singleton with one table and single table access query operator)
-
+        if (joinTableNames.isEmpty()) {
+            return prevMap;
+        }
         //FOR EACH set of tables in prevMap:
+        for (Map.Entry<Set, QueryOperator> e : prevMap.entrySet()) {
+            Set s = e.getKey();
+            QueryOperator currentOperator = e.getValue();
+            //FOR EACH join condition listed in the query
+            for (int i = 0; i < joinTableNames.size(); i++) {
+                //get the left side and the right side (table name and column)
+                String leftRelation[] = getJoinLeftColumnNameByIndex(i);
+                String rightRelation[] = getJoinRightColumnNameByIndex(i);
 
-        //FOR EACH join condition listed in the query
+                String leftTableName = leftRelation[0];
+                String leftColName = leftRelation[1];
 
-        //get the left side and the right side (table name and column)
+                String rightTableName = rightRelation[0];
+                String rightColName = rightRelation[1];
 
-        /*
-         * Case 1. Set contains left table but not right, use pass1Map to
-         * fetch the right operator to access the rightTable
-         *
-         * Case 2. Set contains right table but not left, use pass1Map to
-         * fetch the right operator to access the leftTable.
-         *
-         * Case 3. Set contains neither or both the left table or right table (continue loop)
-         *
-         * --- Then given the operator, use minCostJoinType to calculate the cheapest join with that
-         * and the previously joined tables.
-         */
+                QueryOperator cheapestJoin = null;
+                QueryOperator rightOperator = null;
+                QueryOperator leftOperator = null;
+                // A new set of tables is required because we don't want to modify prevMap, but
+                // if either a right or left table does not exist in prevMap, we need to add it to
+                // the set of tables to be joined
+                // This missing table in prevMap is added in the if checks and then the rest of the
+                // set of tables to be joined present in prevMap is added AFTER the case checks
+                Set joinedTables = new HashSet();
 
+                //* Case 1. Set contains left table but not right, use pass1Map to
+                //* fetch the right operator to access the rightTable
+                if(s.contains(leftTableName) && !s.contains(rightTableName)) {
+                    joinedTables.addAll(Collections.singleton(rightTableName));
+                    leftOperator = currentOperator;
+                    rightOperator = pass1Map.get(joinedTables);
+                    // debugging
+                    assert(leftOperator != null);
+                    assert(rightOperator != null);
+                }
+                // Case 2. Set contains right table but not left, use pass1Map to
+                // fetch the right operator to access the leftTable.
+                else if(s.contains(rightTableName) && !s.contains(leftTableName)) {
+                    joinedTables.addAll(Collections.singleton(leftTableName));
+                    leftOperator = pass1Map.get(joinedTables);
+                    rightOperator = currentOperator;
+                }
+                // Case 3. Set contains neither or both the left table or right table (continue loop)
+                else {
+                    continue;
+                }
+             // --- Then given the operator, use minCostJoinType to calculate the cheapest join with that
+             // and the previously joined tables.
+                // We only want to join the set of relations on this operator
+                // if the cost is less than the prevPass cost
+                if (leftOperator != null && rightOperator != null) {
+                    joinedTables.addAll(s);
+                    cheapestJoin = minCostJoinType(leftOperator, rightOperator, leftColName, rightColName);
+                    assert (cheapestJoin != null);
+                    int newCost = cheapestJoin.estimateIOCost();
+                    int currentCost = map.containsKey(joinedTables) ? map.get(joinedTables).estimateIOCost() : Integer.MAX_VALUE;
+                    if (newCost < currentCost || !map.containsKey(joinedTables)) {
+                        map.put(joinedTables, cheapestJoin);
+                    }
+                }
+            }
+        }
         return map;
     }
 
